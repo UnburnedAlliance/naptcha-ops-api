@@ -669,133 +669,6 @@ app.get('/api/validatesesh/:authid', (req, res) => {
 })
 
 
-    // Check ACTIVE accounts for assets extrapolated from address (cardano-js)
-
-
-
-// GetAccountsList
-app.get('/api/users', (req, res) => {
-    console.log("GAH")
-    // ?sortby= OLD || NEW || RECENTLY ACTIVE
-    // ?status = REGISTERED || ACTIVE || IDLE || OVERDUE
-    // ?name = UserTable.profile.name (search by name)
-    // ?tw = UserTable.profile.tw (search by twitter handle)
-    // ?results = Max results to return
-
-    let maxResults = Object.keys(req.query).findIndex(el => el == "results")
-    //res.send(Object.values(req.query));
-    // Static data simulates database calls for now
-    //res.send(req.query["results"])
-    if(req.query["results"] < 1) {
-        res.send("ERROR: Requested zero results. Jackass.");
-    }
-
-    let resultArray = []
-    UsersList.forEach(el => {
-        resultArray.push({
-            account: el.account.id, 
-            name: el.profile.name, 
-        })
-    })
-    res.send(resultArray);
-})
-
-// GetAccount: 
-// Uses a wallet address to find an account_id, first by checking last_wallet_used of all accounts in REGISTERED status, then by checking for a login token 
-// and referencing the assetID of the token in assed_id of the same user_profiles table.
-// Use account 'Seamoss2' with asset asset1c9gdzqg5j4har3kttk6g7qsmxxv8wh4vqvestt, the ADANerd#08422
-app.get('/api/accounts/:w_id', (req, res) => {
-    UsersList.forEach(user => {
-        if(user.account.last_used_wallet == req.params.w_id) {
-            res.send(user);  
-        }
-    })
-    res.send(false)
-});
-
-// GetProfileInfo: return row from user_profiles using an account_id
-app.get('/api/users/:a_id', (req, res) => {
-    /*
-    UsersList.forEach(user => {
-        if(req.params.a_id == user.account.id) {
-            res.send(user);
-        }
-    })
-    */
-
-    const userResult = UsersList.find(obj => obj.account.id === req.params.a_id)
-    if(!userResult) {
-        res.status(404).send('No account with that ID was found.')
-    }
-    res.send(userResult)
-    //res.send("No profile data found for account ID.")
-});
-
-
-// Get your profile on My Account page (infobox.vue)
-app.get('/api/getprofile/:authcode', (req, res) => {
-    // check validity of auth code, fetch the related profile and return.
-    let givenCode = req.params.authcode;
-    let auths = [];
-
-    // Filter the auth_table for USer type auths
-    auth_table.forEach(authobj => {
-        if(authobj.scope == "USER") {
-            auths.push(authobj);
-        }
-    });
-
-    // Find the auth code in the auth_table and get the user ID related to it
-    auths.forEach(async authobj => {
-        if(authobj.auth == givenCode) {
-            let userID = authobj.resource;
-            // Search user accounts by the found ID
-            UsersList.forEach(user => {
-                if(user.account.id == userID) {
-                    // User object successfully found from the auth code.
-                    res.status(200).send(user);
-                    return;
-                }
-            })
-        }
-    });
-
-    res.status(200).send(false)
-})
-
-
-app.get('/api/users/update/:a_id', (req, res) => {
-    const options = { 
-        account: req.params.a_id, 
-        name: req.query.name, 
-        website: req.query.website, 
-        bio: req.query.bio, 
-        pic: req.query.pic, 
-        tw: req.query.tw, 
-    }
-
-    let account = Object.values(walletList).find(wallet => wallet.account_id == options.account);  
-
-    // Update account
-    let ind = walletList.map(item => item.account_id).indexOf(options.account)
-    if(options.name) UsersList[ind].profile.name = options.name;
-    if(options.website) UsersList[ind].profile.website = options.website;
-    if(options.bio) UsersList[ind].profile.bio = options.bio;
-    if(options.pic) UsersList[ind].profile.pic = options.pic; 
-    if(options.tw) UsersList[ind].profile.tw = options.tw;
-
-    res.send(UsersList[ind])
-})
-
-/*
-profile: {
-    name: "Seamoss", // No spaces or special characters allowed. Stored in the same case as typed.
-    website: "https://talismo.io", 
-    bio: "Lorem ipsum", 
-    pic: "https://i.ibb.co/PQr9yxX/m3u7inu3m7-V1mv-Gj8qcg.png", 
-    tw: "wellspringagncy", 
-   }
-*/
 
 
 ///////////////////////////////////////////////////////         TOKEN CALLS
@@ -850,72 +723,16 @@ app.get('/api/gates/:g_id', (req, res) => {
 })
 
 
-// Gate Summary data for My Account page
-app.get('/api/gatesummary/:u_id', (req, res) => {
-    /* 
-    this.gateInfo.c_total_gates = gateSummary.c_total_gates;
-    this.gateInfo.c_total_uses = gateSummary.c_total_uses;
-    this.gateInfo.c_total_gates_capped = gateSummary.c_total_gates_capped;
-    this.gateInfo.most_pop_gateObj = gateSummary.most_pop_gateObj;
-    this.gateInfo.most_pop_nftObj = gateSummary.most_pop_nftObj;
-    */
-   console.log("top of /api/gatesummary...")
-    let topNFT = mostPopNFT(req.params.u_id);
-    if(topNFT == false) {
-        console.log("topNFT is false somehow.")
-        res.status(200).send(false);
-    }
-    console.log("out of mostPopNFT()...")
-    console.log(topNFT); // [0] is the gate obj, [1] is the times used.
-    let topGate = mostPopGate(req.params.u_id);
-    console.log("what is passed by mostPopGate?")
-    console.log(topGate);
 
-    
-    
-    let total_uses = 0; // all firings of all gates owned by user
-    let total_gates = 0;  // all gates owned
-    let total_gates_capped = 0;
-    let active_gates = 0;
-    let inactive_gates = 0;
-    gate_list_table.forEach(gateObj => {
-        if(gateObj.account_id == req.params.u_id) {
-            total_gates++;
-            total_uses = total_uses + gateObj.uses;
-            if(gateObj.gatekey_active) {
-                active_gates++;
-                if(gateObj.uses >= gateObj.use_cap && gateObj.use_cap != -1) {
-                    console.log("counting this gate "+gateObj.gatekey_serial)
-                    total_gates_capped++;
-                }
-            } else {
-                inactive_gates++;
-            }
-        }
-    })
-    // Calculate total uses
+////////////////////////////////            PAYLOAD RELATED SECTION         ////////////////////////////////
 
-    
-
-    let gateSum = {
-        c_total_gates: total_gates, 
-        c_total_uses: total_uses, 
-        c_total_gates_capped: total_gates_capped, 
-        c_active_gates: active_gates, 
-        c_inactive_gates: inactive_gates, 
-        topGate, 
-        topNFT, 
-    }
-    console.log("final API response for gateSum: ")
-    console.log(gateSum);
-    res.status(200).send(gateSum);
-})
 
 
 // OPS LIST GATES MATCHING DOMAIN AND WALLET ASSETS
-app.get('/api/ops/listgates/:w_id', (req, res) => {
+app.get('/ops/listgates/:w_id', (req, res) => {
     // Filter by Domain
     let fromDomain = req.get('host');
+    console.log("Filtering gates by calling domain :"+fromDomain)
     let domainMatches = gatesByDomain(fromDomain)
 
     // CARDANO-JS: Extrapolate asset list from wallet address parameter
@@ -927,64 +744,4 @@ app.get('/api/ops/listgates/:w_id', (req, res) => {
 
 
 
-
-///////////////////////////////////////////////////////         WALLET CALLS
-// BillingSnippet: Get select basic info from the internal_balances table.
-app.get('/api/wallets/:authcode', (req, res) => {
-    auth_table.forEach(authobj => {
-        if(authobj.auth == req.params.authcode) {
-            if(authobj.scope == "USER") {
-                walletList.forEach(int_wal => {
-                    if(int_wal.account_id == authobj.resource) {
-                        console.log("API for wallets, sending wallet")
-                        res.status(200).send(int_wal);
-                    }
-                })
-            } 
-           
-        }
-    })
-    res.status(200).send(false);
-})
-
-// ChangeSubscription
-/* Notes
-
-* Should check whether the user has enough in their wallet, and charge them immediately up-front for the first month. If they can't be charged, this API 
-    to update the sub tier should fail.
-
-*/
-app.get('/api/wallets/updatesub/:a_id', (req, res) => {
-    const options = {
-        tier: req.query.service_tier, 
-        account: req.params.a_id, 
-    }
-
-    let tiers = Object.keys(tierConfigs).find(key => key == options.tier);
-
-    // VALIDATION: service_tier
-    if(!tiers) {
-        res.status(400).send('Invalid tier choice.')
-        return;
-    } 
-
-    // VALIDATION: account_id
-    let account = Object.values(walletList).find(wallet => wallet.account_id == options.account);
-    if(!account) {
-        res.send('Invalid account ID');
-        return;
-    }
-    
-    let ind = walletList.map(item => item.account_id).indexOf(options.account)
-
-    walletList[ind].service_tier = tiers
-
-    res.status(200).send(walletList[ind])
-
-    //res.status(200).send('Billing account updated ')
-})
-
-
-
-
-app.listen(3000, () => console.log('Listening on 3000'))
+app.listen(3001, () => console.log('Listening on 3001'))
